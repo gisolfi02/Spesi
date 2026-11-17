@@ -11,7 +11,7 @@ android {
     }
 
     defaultConfig {
-        applicationId = "com.example.expensetracker"
+        applicationId = "com.gisolfi02.spesi"
         minSdk = 26
         targetSdk = 37
         versionCode = 1
