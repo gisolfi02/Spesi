@@ -12,6 +12,15 @@
   ![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)
 </div>
 
+<p align="center">
+  <a href="https://github.com/gisolfi02/Spesi/releases/latest">
+    <img
+      src="https://img.shields.io/badge/SCARICA-SPES%C3%8C-7138EB?style=for-the-badge&logo=android&logoColor=white"
+      alt="Scarica Spesì"
+    />
+  </a>
+</p>
+
 ## Che cos'è Spesì?
 
 Spesì aiuta a tenere traccia delle spese quotidiane e a capire come vengono distribuite nel tempo. Non richiede la creazione di un account e le funzioni principali sono disponibili senza connessione Internet.
@@ -35,6 +44,20 @@ Spesì aiuta a tenere traccia delle spese quotidiane e a capire come vengono dis
   <img src="docs/screenshots/dettaglio-mese.png" width="190" alt="Dettaglio mese"/>
   <img src="docs/screenshots/impostazioni.png" width="190" alt="Impostazioni"/>
 </p>
+
+## Download e installazione
+
+Spesì è disponibile gratuitamente per Android 8.0 e versioni successive.
+
+1. Clicca su **Scarica Spesì**.
+2. Nella pagina della release, espandi la sezione **Assets**.
+3. Scarica il file `.apk` della versione più recente.
+4. Apri il file sul tuo smartphone e autorizza
+   l'installazione da questa sorgente, se richiesto.
+5. Installa e avvia Spesì.
+
+Non sono necessari account o connessione Internet
+per utilizzare le funzionalità dell'app.
 
 ## Tecnologie
 
@@ -61,8 +84,6 @@ Spesì aiuta a tenere traccia delle spese quotidiane e a capire come vengono dis
 3. Attendi la sincronizzazione di Gradle e l'installazione degli SDK eventualmente richiesti.
 4. Seleziona un emulatore o un dispositivo Android con il debug abilitato.
 5. Premi **Run** per compilare e avviare l'app.
-
-> La distribuzione pubblica di un APK firmato tramite GitHub Releases è prevista in una fase successiva. Per il momento il repository rende disponibile il codice sorgente.
 
 ## Dati e privacy
 
