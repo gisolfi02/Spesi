@@ -28,7 +28,13 @@ Spesì aiuta a tenere traccia delle spese quotidiane e a capire come vengono dis
 
 ## Screenshot
 
-Gli screenshot dell'app saranno aggiunti prossimamente.
+<p align="center">
+  <img src="docs/screenshots/home.png" width="190" alt="Home"/>
+  <img src="docs/screenshots/aggiungi.png" width="190" alt="Aggiungi spesa"/>
+  <img src="docs/screenshots/storico.png" width="190" alt="Storico"/>
+  <img src="docs/screenshots/dettaglio-mese.png" width="190" alt="Dettaglio mese"/>
+  <img src="docs/screenshots/impostazioni.png" width="190" alt="Impostazioni"/>
+</p>
 
 ## Tecnologie
 
