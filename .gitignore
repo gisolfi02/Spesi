@@ -1,0 +1,48 @@
+*.iml
+.gradle
+/local.properties
+/.idea/caches
+/.idea/libraries
+/.idea/modules.xml
+/.idea/workspace.xml
+/.idea/navEditor.xml
+/.idea/assetWizardSettings.xml
+.DS_Store
+/build
+/captures
+.externalNativeBuild
+.cxx
+local.properties
+
+
+# Android Studio e Gradle
+.gradle/
+.kotlin/
+.idea/
+*.iml
+**/build/
+local.properties
+captures/
+.externalNativeBuild/
+.cxx/
+
+# File locali e personali
+*.log
+*.hprof
+.env
+.env.*
+key.properties
+
+# Chiavi di firma
+*.jks
+*.keystore
+*.pem
+*.p12
+
+# Applicazioni compilate
+*.apk
+*.aab
+
+# Sistema operativo
+.DS_Store
+Thumbs.db
