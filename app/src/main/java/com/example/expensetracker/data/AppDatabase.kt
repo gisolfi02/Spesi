@@ -40,9 +40,26 @@ private val MIGRATION_3_4 = Migration(3, 4) { connection ->
     )
 }
 
+/** Nuove rate collegate alla serie: nessuna spesa storica viene rimossa. */
+private val MIGRATION_4_5 = Migration(4, 5) { connection ->
+    connection.execSQL("ALTER TABLE `expenses` ADD COLUMN `recurringSourceId` INTEGER")
+    connection.execSQL("ALTER TABLE `expenses` ADD COLUMN `recurringOccurrenceIndex` INTEGER")
+    connection.execSQL(
+        """CREATE UNIQUE INDEX IF NOT EXISTS
+        `index_expenses_recurringSourceId_recurringOccurrenceIndex`
+        ON `expenses` (`recurringSourceId`, `recurringOccurrenceIndex`)""".trimIndent()
+    )
+}
+
+/** Scadenze opzionali delle ricorrenze: i dati delle spese restano invariati. */
+private val MIGRATION_5_6 = Migration(5, 6) { connection ->
+    connection.execSQL("ALTER TABLE `recurring_rules` ADD COLUMN `expiryAfterMonths` INTEGER")
+    connection.execSQL("ALTER TABLE `recurring_rules` ADD COLUMN `endDateEpochDay` INTEGER")
+}
+
 @Database(
     entities = [ExpenseEntity::class, RecurringRule::class, CustomCategory::class],
-    version = 4,
+    version = 6,
     exportSchema = true
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -57,7 +74,7 @@ abstract class AppDatabase : RoomDatabase() {
                     context.applicationContext, "expenses.db"
                 )
                     .setDriver(AndroidSQLiteDriver())
-                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4)
+                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6)
                     .build()
                     .also { INSTANCE = it }
             }

@@ -30,6 +30,8 @@ import com.example.expensetracker.ui.components.ExpenseCategoryCatalog
 import com.example.expensetracker.ui.components.ExpenseCategoryStyle
 import com.example.expensetracker.ui.components.DonutSegment
 import com.example.expensetracker.ui.components.WalletIllustration
+import com.example.expensetracker.ui.components.ExpenseBreakdownPager
+import com.example.expensetracker.ui.components.PaymentMethodInline
 import java.math.BigDecimal
 import java.time.LocalDate
 import java.time.YearMonth
@@ -68,12 +70,6 @@ fun MonthDetailScreen(
     val previousTotal by previousTotalFlow.collectAsState(initial = 0L)
 
     val total = expenses.sumOf { it.amountCents }
-    val totalsByCategory = historyMonthlyTotals(expenses)
-    val activeCategories = ExpenseCategoryCatalog.activeStyles(totalsByCategory, customCategories)
-    val segments = activeCategories.map { style ->
-        DonutSegment(style.name, totalsByCategory.getValue(style.name).toDouble(), style.color)
-    }
-
     // Il selettore di file Android salva il CSV anche senza connessione Internet.
     val exportLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.CreateDocument("text/csv")
@@ -204,36 +200,10 @@ fun MonthDetailScreen(
             }
         }
 
-        Surface(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(24.dp),
-            color = Color.White, shadowElevation = 4.dp) {
-            Column(modifier = Modifier.padding(horizontal = 14.dp, vertical = 17.dp)) {
-                Text("Spese per categoria", fontSize = 21.sp,
-                    fontWeight = FontWeight.ExtraBold, color = HistoryInk)
-                Spacer(Modifier.height(15.dp))
-                if (activeCategories.isEmpty()) {
-                    // Come nella Home: nessuna legenda se non ci sono spese.
-                    Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
-                        CategoryDonutChart(emptyList(), historyEuro(0L), Modifier.size(210.dp))
-                    }
-                } else {
-                    Row(modifier = Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        CategoryDonutChart(
-                            categories = segments,
-                            totalLabel = historyEuro(total),
-                            modifier = Modifier.weight(0.96f)
-                        )
-                        Column(modifier = Modifier.weight(1.04f),
-                            verticalArrangement = Arrangement.spacedBy(7.dp)) {
-                            activeCategories.forEach { style ->
-                                DetailCategoryLine(style, totalsByCategory.getValue(style.name), total)
-                            }
-                        }
-                    }
-                }
-            }
-        }
+        ExpenseBreakdownPager(
+            expenses = expenses,
+            categoryStyles = categoryStyles
+        )
 
         Surface(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(24.dp),
             color = Color.White, shadowElevation = 4.dp) {
@@ -346,7 +316,12 @@ private fun DetailExpenseLine(
             Text(expense.merchant.ifBlank { "Spesa ${expense.category}" },
                 fontSize = 13.sp, fontWeight = FontWeight.Bold, color = HistoryInk,
                 maxLines = 1, overflow = TextOverflow.Ellipsis)
-            Text(historyDate(expense.dateEpochDay), fontSize = 11.sp, color = HistoryMuted)
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(historyDate(expense.dateEpochDay), fontSize = 10.sp,
+                    color = HistoryMuted, maxLines = 1)
+                Spacer(Modifier.width(6.dp))
+                PaymentMethodInline(expense.paymentMethod, Modifier.weight(1f))
+            }
         }
         Box(
             modifier = Modifier.clip(RoundedCornerShape(20.dp))

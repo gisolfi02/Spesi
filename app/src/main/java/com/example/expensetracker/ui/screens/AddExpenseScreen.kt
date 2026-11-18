@@ -110,7 +110,7 @@ fun AddExpenseScreen(
     existingExpense: ExpenseEntity? = null,
     existingRecurrence: RecurringRule? = null,
     onBackClick: () -> Unit,
-    onSave: (ExpenseEntity, RecurrenceInterval?) -> Unit
+    onSave: (ExpenseEntity, RecurrenceInterval?, Int?, Long?) -> Unit
 ) {
     val context = LocalContext.current
     val database = remember(context) { AppDatabase.getDatabase(context) }
@@ -155,6 +155,24 @@ fun AddExpenseScreen(
     var recurrenceCode by rememberSaveable(existingExpense?.id) {
         mutableStateOf(existingRecurrence?.intervalCode ?: RecurrenceInterval.MONTHLY.name)
     }
+    // NONE = nessuna scadenza; MONTHS = durata rispetto alla data iniziale;
+    // DATE = giorno finale fisso (incluso).
+    var expiryMode by rememberSaveable(existingExpense?.id) {
+        mutableStateOf(when {
+            existingRecurrence?.expiryAfterMonths != null -> "MONTHS"
+            existingRecurrence?.endDateEpochDay != null -> "DATE"
+            else -> "NONE"
+        })
+    }
+    var expiryMonths by rememberSaveable(existingExpense?.id) {
+        mutableIntStateOf(existingRecurrence?.expiryAfterMonths ?: 2)
+    }
+    var expiryAbsoluteDay by rememberSaveable(existingExpense?.id) {
+        mutableLongStateOf(existingRecurrence?.endDateEpochDay
+            ?: LocalDate.ofEpochDay(existingExpense?.dateEpochDay
+                ?: LocalDate.now().toEpochDay()).plusMonths(2).toEpochDay())
+    }
+    var showExpirySheet by rememberSaveable { mutableStateOf(false) }
     var showRecurrenceSheet by rememberSaveable { mutableStateOf(false) }
     var showPaymentSheet by rememberSaveable { mutableStateOf(false) }
     val selectedPayment = paymentMethods.firstOrNull { it.label == paymentMethod }
@@ -169,6 +187,20 @@ fun AddExpenseScreen(
     val date = LocalDate.ofEpochDay(selectedDay)
     val dateText = date.format(DateTimeFormatter.ofPattern("d MMM yyyy", Locale.ITALIAN))
     val amountCents = parseAmountCents(amount)
+    val effectiveEndDate = when (expiryMode) {
+        "MONTHS" -> date.plusMonths(expiryMonths.toLong())
+        "DATE" -> LocalDate.ofEpochDay(expiryAbsoluteDay)
+        else -> null
+    }
+    val expiryIsValid = !recurringEnabled || effectiveEndDate == null ||
+            (!effectiveEndDate.isBefore(date) && !effectiveEndDate.isAfter(date.plusYears(100)))
+    val expiryText = when (expiryMode) {
+        "MONTHS" -> "Dopo $expiryMonths ${if (expiryMonths == 1) "mese" else "mesi"} · " +
+                effectiveEndDate!!.format(DateTimeFormatter.ofPattern("d MMM yyyy", Locale.ITALIAN))
+        "DATE" -> "Fino al " +
+                effectiveEndDate!!.format(DateTimeFormatter.ofPattern("d MMM yyyy", Locale.ITALIAN))
+        else -> "Senza scadenza"
+    }
 
     Column(
         modifier = modifier
@@ -397,9 +429,24 @@ fun AddExpenseScreen(
                         showArrow = true,
                         onClick = { showRecurrenceSheet = true }
                     )
+                    HorizontalDivider(color = Color(0xFFEBEAF4))
+                    DetailRow(
+                        icon = Icons.Filled.EventAvailable,
+                        title = "Scadenza",
+                        value = expiryText,
+                        showArrow = true,
+                        onClick = { showExpirySheet = true }
+                    )
+                    if (!expiryIsValid) {
+                        Text(
+                            "La scadenza non può precedere l'inizio della spesa.",
+                            color = Color(0xFFD33B4E), fontSize = 12.sp,
+                            modifier = Modifier.padding(start = 54.dp, end = 5.dp, bottom = 4.dp)
+                        )
+                    }
                     Text(
-                        "La prima spesa viene salvata con la data selezionata. " +
-                                "Le successive saranno aggiunte alle relative scadenze.",
+                        "La data finale è inclusa. Le rate successive alla scadenza " +
+                                "non verranno generate.",
                         color = Muted, fontSize = 11.sp,
                         modifier = Modifier.padding(start = 54.dp, bottom = 12.dp, end = 5.dp)
                     )
@@ -407,7 +454,7 @@ fun AddExpenseScreen(
             }
         }
 
-        val canSave = amountCents != null && !isSaving
+        val canSave = amountCents != null && !isSaving && expiryIsValid
         Box(
             modifier = Modifier.fillMaxWidth().height(56.dp)
                 .clip(RoundedCornerShape(20.dp))
@@ -439,7 +486,9 @@ fun AddExpenseScreen(
                         )
                         onSave(
                             updatedExpense,
-                            if (recurringEnabled) RecurrenceInterval.valueOf(recurrenceCode) else null
+                            if (recurringEnabled) RecurrenceInterval.valueOf(recurrenceCode) else null,
+                            if (recurringEnabled && expiryMode == "MONTHS") expiryMonths else null,
+                            if (recurringEnabled && expiryMode == "DATE") expiryAbsoluteDay else null
                         )
                     }
                 },
@@ -564,6 +613,30 @@ fun AddExpenseScreen(
             onSelect = {
                 recurrenceCode = it.name
                 showRecurrenceSheet = false
+            }
+        )
+    }
+
+    if (showExpirySheet) {
+        ExpiryBottomSheet(
+            selectedMode = expiryMode,
+            selectedMonths = expiryMonths,
+            selectedEndDay = expiryAbsoluteDay,
+            startDay = selectedDay,
+            onDismiss = { showExpirySheet = false },
+            onSelectNone = {
+                expiryMode = "NONE"
+                showExpirySheet = false
+            },
+            onSelectMonths = { months ->
+                expiryMode = "MONTHS"
+                expiryMonths = months
+                showExpirySheet = false
+            },
+            onSelectDate = { day ->
+                expiryMode = "DATE"
+                expiryAbsoluteDay = day
+                showExpirySheet = false
             }
         )
     }
@@ -1175,3 +1248,127 @@ private fun DeleteCategoryDialog(
         }
     )
 }
+
+
+/** Selezione scadenza: durata dinamica dalla data iniziale oppure data fissa. */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun ExpiryBottomSheet(
+    selectedMode: String,
+    selectedMonths: Int,
+    selectedEndDay: Long,
+    startDay: Long,
+    onDismiss: () -> Unit,
+    onSelectNone: () -> Unit,
+    onSelectMonths: (Int) -> Unit,
+    onSelectDate: (Long) -> Unit
+) {
+    val context = LocalContext.current
+    var customMonths by rememberSaveable { mutableStateOf(selectedMonths.toString()) }
+    val start = LocalDate.ofEpochDay(startDay)
+    val selectedEnd = LocalDate.ofEpochDay(selectedEndDay)
+    val common = listOf(1, 2, 3, 6, 12)
+
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        containerColor = Color.White,
+        shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp)
+    ) {
+        Column(
+            modifier = Modifier.fillMaxWidth()
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = 20.dp)
+                .padding(bottom = 24.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            Text("Quando termina?", fontSize = 22.sp,
+                fontWeight = FontWeight.ExtraBold, color = Ink)
+            Text("Le rate oltre la scadenza non saranno registrate.",
+                color = Muted, fontSize = 13.sp)
+
+            ExpiryOptionRow("Senza scadenza", "Continua finché non la disattivi",
+                selectedMode == "NONE", onSelectNone)
+
+            Text("DURATA DALLA DATA INIZIALE", color = Muted,
+                fontWeight = FontWeight.Bold, fontSize = 11.sp,
+                modifier = Modifier.padding(top = 8.dp))
+            common.forEach { months ->
+                val finish = start.plusMonths(months.toLong()).format(
+                    DateTimeFormatter.ofPattern("d MMM yyyy", Locale.ITALIAN))
+                ExpiryOptionRow(
+                    "Dopo $months ${if (months == 1) "mese" else "mesi"}",
+                    "Ultimo giorno incluso: $finish",
+                    selectedMode == "MONTHS" && selectedMonths == months
+                ) { onSelectMonths(months) }
+            }
+
+            Text("Altra durata (mesi)", fontSize = 13.sp,
+                color = Ink, fontWeight = FontWeight.SemiBold)
+            Row(verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                OutlinedTextField(
+                    value = customMonths,
+                    onValueChange = { value ->
+                        if (value.length <= 4 && value.all(Char::isDigit)) customMonths = value
+                    },
+                    modifier = Modifier.weight(1f),
+                    singleLine = true,
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                    placeholder = { Text("Es. 8") },
+                    shape = RoundedCornerShape(14.dp)
+                )
+                val value = customMonths.toIntOrNull()
+                Button(
+                    onClick = { if (value != null) onSelectMonths(value) },
+                    enabled = value != null && value in 1..1200,
+                    colors = ButtonDefaults.buttonColors(containerColor = Purple, contentColor = Color(0xFFFFFFFF))
+                ) { Text("Imposta") }
+            }
+
+            HorizontalDivider(color = Color(0xFFEBEAF4))
+            ExpiryOptionRow(
+                "Scegli una data precisa",
+                if (selectedMode == "DATE") {
+                    selectedEnd.format(DateTimeFormatter.ofPattern("d MMM yyyy", Locale.ITALIAN))
+                } else "La scadenza rimane fissa anche cambiando la data iniziale",
+                selectedMode == "DATE"
+            ) {
+                val initial = if (selectedMode == "DATE" &&
+                    !selectedEnd.isBefore(start)) selectedEnd else start.plusMonths(2)
+                DatePickerDialog(
+                    context,
+                    { _, year, monthZero, day ->
+                        onSelectDate(LocalDate.of(year, monthZero + 1, day).toEpochDay())
+                    },
+                    initial.year, initial.monthValue - 1, initial.dayOfMonth
+                ).show()
+            }
+        }
+    }
+}
+
+@Composable
+private fun ExpiryOptionRow(title: String, caption: String, active: Boolean, onClick: () -> Unit) {
+    Row(
+        modifier = Modifier.fillMaxWidth()
+            .clip(RoundedCornerShape(17.dp))
+            .background(if (active) Color(0xFFF2EBFF) else Background)
+            .border(
+                width = if (active) 2.dp else 1.dp,
+                color = if (active) Purple else Color(0xFFEAE6F2),
+                shape = RoundedCornerShape(17.dp)
+            )
+            .clickable(onClick = onClick)
+            .padding(horizontal = 14.dp, vertical = 13.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Column(modifier = Modifier.weight(1f)) {
+            Text(title, color = Ink, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+            Text(caption, color = Muted, fontSize = 11.sp)
+        }
+        if (active) Icon(Icons.Filled.CheckCircle,
+            contentDescription = "Selezionata", tint = Purple,
+            modifier = Modifier.size(22.dp))
+    }
+}
+

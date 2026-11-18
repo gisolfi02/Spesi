@@ -35,6 +35,8 @@ import com.example.expensetracker.ui.components.ExpenseCategoryCatalog
 import com.example.expensetracker.ui.components.ExpenseCategoryStyle
 import com.example.expensetracker.ui.components.DonutSegment
 import com.example.expensetracker.ui.components.WalletIllustration
+import com.example.expensetracker.ui.components.ExpenseBreakdownPager
+import com.example.expensetracker.ui.components.PaymentMethodInline
 import java.text.DecimalFormat
 import java.text.DecimalFormatSymbols
 import java.time.LocalDate
@@ -160,13 +162,13 @@ fun HomeScreen() {
                     existingRecurrence = selectedRule,
                     isSaving = isSaving,
                     onBackClick = { isEditingExpense = false },
-                    onSave = { updated, interval ->
+                    onSave = { updated, interval, expiryMonths, expiryDay ->
                         if (!isSaving) {
                             isSaving = true
                             scope.launch {
                                 try {
                                     val stored = RecurringExpenseManager.saveExpense(
-                                        context, updated, interval
+                                        context, updated, interval, expiryMonths, expiryDay
                                     )
                                     selectedExpense = stored
                                     selectedRule = dao.getRecurringRule(stored.id)
@@ -197,7 +199,12 @@ fun HomeScreen() {
                     expense = activeExpense,
                     modifier = Modifier.padding(contentPadding),
                     isDeleting = isSaving,
-                    recurrenceDescription = selectedRule?.interval()?.label,
+                    recurrenceDescription = selectedRule?.let { rule ->
+                        val end = rule.expiryDate()
+                        if (end == null) rule.interval().label
+                        else rule.interval().label + " · scade il " +
+                                end.format(DateTimeFormatter.ofPattern("d MMM yyyy", Locale.ITALIAN))
+                    },
                     onBackClick = { selectedExpense = null },
                     onEditClick = {
                         scope.launch {
@@ -242,12 +249,14 @@ fun HomeScreen() {
                 modifier = Modifier.padding(contentPadding),
                 isSaving = isSaving,
                 onBackClick = { selectedTab = 0 },
-                onSave = { expense, interval ->
+                onSave = { expense, interval, expiryMonths, expiryDay ->
                     if (!isSaving) {
                         isSaving = true
                         scope.launch {
                             try {
-                                RecurringExpenseManager.saveExpense(context, expense, interval)
+                                RecurringExpenseManager.saveExpense(
+                                    context, expense, interval, expiryMonths, expiryDay
+                                )
                                 // Se la spesa e' di un altro mese, apriamo proprio quel mese.
                                 selectedMonthKey = YearMonth.from(
                                     LocalDate.ofEpochDay(expense.dateEpochDay)
@@ -317,17 +326,6 @@ private fun HomeContent(
 ) {
     // Totale e categorie si ricavano esclusivamente dalle spese salvate nel database.
     val totalCents = expenses.sumOf { it.amountCents }
-    val categoryTotals = expenses.groupBy { it.category }
-        .mapValues { (_, values) -> values.sumOf { it.amountCents } }
-    // Mostriamo nel grafico e nella legenda soltanto le categorie con spese positive.
-    val visibleCategories = categoryStyles.filter { style ->
-        (categoryTotals[style.name] ?: 0L) > 0L
-    } + categoryTotals.keys.filter { name ->
-        (categoryTotals[name] ?: 0L) > 0L && categoryStyles.none { it.name == name }
-    }.map { name -> ExpenseCategoryStyle(name, Purple, Icons.Filled.Receipt) }
-    val segments = visibleCategories.map { style ->
-        DonutSegment(style.name, categoryTotals.getValue(style.name).toDouble(), style.color)
-    }
     val visibleExpenses = if (showAllExpenses) expenses else expenses.take(4)
 
     Column(
@@ -457,56 +455,10 @@ private fun HomeContent(
             }
         }
 
-        Surface(
-            modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(24.dp),
-            color = Color.White, shadowElevation = 4.dp
-        ) {
-            Column(modifier = Modifier.padding(horizontal = 14.dp, vertical = 16.dp)) {
-                Text(
-                    "Spese per categoria", fontWeight = FontWeight.ExtraBold,
-                    fontSize = 21.sp, color = Ink
-                )
-                Spacer(Modifier.height(14.dp))
-                if (visibleCategories.isEmpty()) {
-                    // Nessuna spesa nel mese: solo il grafico vuoto, centrato nella card.
-                    Box(
-                        modifier = Modifier.fillMaxWidth(),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        CategoryDonutChart(
-                            categories = emptyList(),
-                            totalLabel = euro(totalCents),
-                            modifier = Modifier.size(220.dp)
-                        )
-                    }
-                } else {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(9.dp)
-                    ) {
-                        CategoryDonutChart(
-                            categories = segments,
-                            totalLabel = euro(totalCents),
-                            modifier = Modifier.weight(0.94f)
-                        )
-                        Column(
-                            modifier = Modifier.weight(1.06f),
-                            verticalArrangement = Arrangement.spacedBy(4.dp)
-                        ) {
-                            visibleCategories.forEach { style ->
-                                CategoryLine(
-                                    style = style,
-                                    amountCents = categoryTotals[style.name] ?: 0L,
-                                    totalCents = totalCents
-                                )
-                            }
-                        }
-                    }
-                }
-            }
-        }
+        ExpenseBreakdownPager(
+            expenses = expenses,
+            categoryStyles = categoryStyles
+        )
 
         Surface(
             modifier = Modifier.fillMaxWidth(),
@@ -627,7 +579,12 @@ private fun ExpenseLine(
                 title, color = Ink, fontWeight = FontWeight.Bold,
                 fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis
             )
-            Text(expenseDate(expense.dateEpochDay), color = Muted, fontSize = 11.sp)
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(expenseDate(expense.dateEpochDay), color = Muted,
+                    fontSize = 10.sp, maxLines = 1)
+                Spacer(Modifier.width(6.dp))
+                PaymentMethodInline(expense.paymentMethod, Modifier.weight(1f))
+            }
         }
         Spacer(Modifier.width(4.dp))
         Box(

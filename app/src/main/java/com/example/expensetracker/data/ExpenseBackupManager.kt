@@ -30,7 +30,7 @@ data class ExpenseBackupPreview(
 /** Export/import locale tramite URI del selettore file di Android (Storage Access Framework). */
 object ExpenseBackupManager {
     private const val APPLICATION_ID = "com.example.expensetracker"
-    private const val FORMAT_VERSION = 4
+    private const val FORMAT_VERSION = 6
     private const val MAX_FILE_BYTES = 20_000_000
     private const val MAX_EXPENSES = 50_000
 
@@ -52,6 +52,8 @@ object ExpenseBackupManager {
                 put("note", expense.note)
                 put("isRecurring", expense.isRecurring)
                 put("receiptUri", expense.receiptUri ?: JSONObject.NULL)
+                put("recurringSourceId", expense.recurringSourceId ?: JSONObject.NULL)
+                put("recurringOccurrenceIndex", expense.recurringOccurrenceIndex ?: JSONObject.NULL)
             }
             items.put(entry)
         }
@@ -63,6 +65,8 @@ object ExpenseBackupManager {
                 put("intervalCode", rule.intervalCode)
                 put("firstDateEpochDay", rule.firstDateEpochDay)
                 put("nextIndex", rule.nextIndex)
+                put("expiryAfterMonths", rule.expiryAfterMonths ?: JSONObject.NULL)
+                put("endDateEpochDay", rule.endDateEpochDay ?: JSONObject.NULL)
             })
         }
         val categoryItems = JSONArray()
@@ -154,6 +158,17 @@ object ExpenseBackupManager {
                         (receipt == null || receipt.length <= 4000)
                 ) { "Testo troppo lungo o metodo di pagamento non valido" }
                 require(recurring is Boolean) { "Valore di ricorrenza non valido" }
+                val sourceId = if (backupVersion >= 5 &&
+                    !item.isNull("recurringSourceId")) item.strictLong("recurringSourceId") else null
+                val occurrenceIndex = if (backupVersion >= 5 &&
+                    !item.isNull("recurringOccurrenceIndex"))
+                    item.strictLong("recurringOccurrenceIndex") else null
+                require((sourceId == null) == (occurrenceIndex == null)) {
+                    "Riferimento di ricorrenza incompleto"
+                }
+                require(sourceId == null || (sourceId > 0 && occurrenceIndex!! >= 1 && !recurring)) {
+                    "Riferimento di ricorrenza non valido"
+                }
 
                 expenses.add(
                     ExpenseEntity(
@@ -165,9 +180,19 @@ object ExpenseBackupManager {
                         paymentMethod = method,
                         note = note,
                         isRecurring = recurring,
-                        receiptUri = receipt
+                        receiptUri = receipt,
+                        recurringSourceId = sourceId,
+                        recurringOccurrenceIndex = occurrenceIndex
                     )
                 )
+            }
+            val occurrenceKeys = HashSet<Pair<Long, Long>>()
+            for (expense in expenses) {
+                if (expense.recurringSourceId != null) {
+                    require(occurrenceKeys.add(
+                        expense.recurringSourceId to expense.recurringOccurrenceIndex!!
+                    )) { "Occorrenza ricorrente duplicata nel backup" }
+                }
             }
             val recurringRules = ArrayList<RecurringRule>()
             if (backupVersion >= 2) {
@@ -192,8 +217,29 @@ object ExpenseBackupManager {
                     RecurrenceInterval.valueOf(code)
                     LocalDate.ofEpochDay(firstDay)
                     require(nextIndex >= 1) { "Indice di ricorrenza non valido" }
+                    val expiryMonths = if (backupVersion >= 6 &&
+                        !item.isNull("expiryAfterMonths")) {
+                        item.strictLong("expiryAfterMonths").also {
+                            require(it in 1L..1200L) { "Durata della ricorrenza non valida" }
+                        }.toInt()
+                    } else null
+                    val expiryDay = if (backupVersion >= 6 &&
+                        !item.isNull("endDateEpochDay")) {
+                        item.strictLong("endDateEpochDay")
+                    } else null
+                    require(expiryMonths == null || expiryDay == null) {
+                        "Sono presenti due scadenze per la stessa ricorrenza"
+                    }
+                    if (expiryDay != null) {
+                        val end = LocalDate.ofEpochDay(expiryDay)
+                        val start = LocalDate.ofEpochDay(firstDay)
+                        require(!end.isBefore(start) && !end.isAfter(start.plusYears(100))) {
+                            "Data finale della ricorrenza non valida"
+                        }
+                    }
                     recurringRules.add(
-                        RecurringRule(sourceId, code, firstDay, nextIndex)
+                        RecurringRule(sourceId, code, firstDay, nextIndex,
+                            expiryMonths, expiryDay)
                     )
                 }
             }

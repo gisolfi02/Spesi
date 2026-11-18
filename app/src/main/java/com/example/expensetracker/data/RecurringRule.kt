@@ -13,7 +13,19 @@ data class RecurringRule(
     @PrimaryKey val sourceExpenseId: Long,
     val intervalCode: String,
     val firstDateEpochDay: Long,
-    val nextIndex: Long = 1L
+    val nextIndex: Long = 1L,
+    // Scadenza relativa alla prima data (es. 2 mesi dopo l'inizio).
+    val expiryAfterMonths: Int? = null,
+    // Scadenza assoluta, in alternativa a expiryAfterMonths.
+    val endDateEpochDay: Long? = null
 ) {
     fun interval(): RecurrenceInterval = RecurrenceInterval.valueOf(intervalCode)
+
+    fun expiryDate(): java.time.LocalDate? = when {
+        expiryAfterMonths != null ->
+            java.time.LocalDate.ofEpochDay(firstDateEpochDay)
+                .plusMonths(expiryAfterMonths.toLong())
+        endDateEpochDay != null -> java.time.LocalDate.ofEpochDay(endDateEpochDay)
+        else -> null
+    }
 }

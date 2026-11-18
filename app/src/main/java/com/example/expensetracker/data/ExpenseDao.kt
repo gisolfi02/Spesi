@@ -96,6 +96,24 @@ interface ExpenseDao {
     @Insert
     suspend fun insertAllRecurringRules(rules: List<RecurringRule>)
 
+    // Occorrenze generate dalla versione 5: collegate alla spesa sorgente.
+    @Query("DELETE FROM expenses WHERE recurringSourceId = :sourceId")
+    suspend fun deleteTrackedOccurrences(sourceId: Long): Int
+
+    // Elimina SOLO le rate ancora collegate alla serie e successive alla scadenza.
+    // Le rate modificate individualmente sono scollegate e non vengono toccate.
+    @Query("DELETE FROM expenses WHERE recurringSourceId = :sourceId AND dateEpochDay > :lastAllowedDay")
+    suspend fun deleteTrackedOccurrencesAfter(sourceId: Long, lastAllowedDay: Long): Int
+
+    @Query("SELECT COUNT(*) FROM expenses WHERE recurringSourceId = :sourceId")
+    suspend fun countTrackedOccurrences(sourceId: Long): Int
+
+    @Query("SELECT EXISTS(SELECT 1 FROM expenses WHERE recurringSourceId = :sourceId AND recurringOccurrenceIndex = :occurrenceIndex)")
+    suspend fun trackedOccurrenceExists(sourceId: Long, occurrenceIndex: Long): Boolean
+
+    @Insert(onConflict = androidx.room3.OnConflictStrategy.IGNORE)
+    suspend fun insertTrackedOccurrence(expense: ExpenseEntity): Long
+
     // Categorie create dall'utente (mantengono nome, colore e icona).
     @Query("SELECT * FROM custom_categories ORDER BY name COLLATE NOCASE ASC")
     fun observeCustomCategories(): Flow<List<CustomCategory>>
