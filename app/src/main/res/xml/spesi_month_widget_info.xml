@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Dimensione predefinita 4x1. Il launcher può applicare lievi differenze di griglia. -->
+<appwidget-provider xmlns:android="http://schemas.android.com/apk/res/android"
+    android:minWidth="240dp"
+    android:minHeight="48dp"
+    android:minResizeWidth="220dp"
+    android:targetCellWidth="4"
+    android:targetCellHeight="1"
+    android:updatePeriodMillis="1800000"
+    android:initialLayout="@layout/widget_spesi_month"
+    android:previewLayout="@layout/widget_spesi_month_preview"
+    android:resizeMode="horizontal"
+    android:widgetCategory="home_screen" />

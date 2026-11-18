@@ -140,11 +140,23 @@ private fun BreakdownLegendRow(item: BreakdownItem, total: Long) {
             fontWeight = FontWeight.SemiBold, maxLines = 2,
             overflow = TextOverflow.Ellipsis, color = Ink, lineHeight = 11.sp)
         Spacer(Modifier.width(2.dp))
-        Column(horizontalAlignment = Alignment.End) {
-            Text(euro(item.cents), color = Ink, fontSize = 10.sp,
-                fontWeight = FontWeight.Bold, maxLines = 1)
-            Text("${if (total > 0) (item.cents.toDouble() / total * 100).roundToInt() else 0}%",
-                color = Muted, fontSize = 9.sp)
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(4.dp)
+        ) {
+            Text(
+                text = euro(item.cents),
+                color = Ink,
+                fontSize = 10.sp,
+                fontWeight = FontWeight.Bold,
+                maxLines = 1
+            )
+            Text(
+                text = "${if (total > 0) (item.cents.toDouble() / total * 100).roundToInt() else 0}%",
+                color = Muted,
+                fontSize = 9.sp,
+                maxLines = 1
+            )
         }
     }
 }

@@ -444,12 +444,6 @@ fun AddExpenseScreen(
                             modifier = Modifier.padding(start = 54.dp, end = 5.dp, bottom = 4.dp)
                         )
                     }
-                    Text(
-                        "La data finale è inclusa. Le rate successive alla scadenza " +
-                                "non verranno generate.",
-                        color = Muted, fontSize = 11.sp,
-                        modifier = Modifier.padding(start = 54.dp, bottom = 12.dp, end = 5.dp)
-                    )
                 }
             }
         }
